@@ -83,7 +83,25 @@ function createFingerprint(opts = {}) {
   });
 }
 
+function createIdentity(opts = {}) {
+  if ((opts.browser || 'chrome') === 'firefox') {
+    return require('./firefox').createFirefoxIdentity(opts);
+  }
+  return createFingerprint(opts);
+}
+
+function createInstance(opts = {}) {
+  if ((opts.browser || 'chrome') === 'firefox') {
+    const { FirefoxInstance } = require('./firefox');
+    return new FirefoxInstance(opts);
+  }
+  return new ChromeInstance(opts);
+}
+
 function summarize(fp, options = {}) {
+  if (fp && fp.browser === 'firefox') {
+    return require('./firefox').summarizeFirefox(fp);
+  }
   if (options.loginSafe) {
     const rows = [
       ['mode', 'login-safe — no DevTools attach, no JS patching'],
@@ -487,6 +505,8 @@ class ChromeInstance extends EventEmitter {
 
 module.exports = {
   ChromeInstance,
+  createInstance,
+  createIdentity,
   createFingerprint,
   findChrome,
   realDisplayGeometry,

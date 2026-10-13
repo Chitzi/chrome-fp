@@ -1,6 +1,6 @@
 'use strict';
 
-const { ChromeInstance, createFingerprint, summarize } = require('./launcher');
+const { createInstance, createIdentity, summarize } = require('./launcher');
 
 const ESC = '\x1b';
 const ALT_SCREEN_ON = `${ESC}[?1049h`;
@@ -97,12 +97,12 @@ class Tui {
 
     let fp;
     try {
-      fp = createFingerprint(opts);
+      fp = createIdentity(opts);
     } catch (e) {
       return this.setMessage(red(`Could not build fingerprint: ${e.message}`));
     }
 
-    const instance = new ChromeInstance(Object.assign({}, opts, { fp }));
+    const instance = createInstance(Object.assign({}, opts, { fp, identity: fp }));
     instance.id = this.nextId++;
     this.instances.push(instance);
     this.selected = this.instances.length - 1;
@@ -183,6 +183,8 @@ class Tui {
         return this.launch({ url: 'https://abrahamjuliot.github.io/creepjs/' });
       case 'g':
         return this.launch({ loginSafe: true });
+      case 'f':
+        return this.launch({ browser: 'firefox' });
       case 'x':
       case '\x7f':
         return this.closeSelected();
@@ -270,10 +272,11 @@ class Tui {
 
     const idW = 3;
     const statusW = 9;
+    const engineW = 8;
     const osW = 8;
     const tabsW = 5;
     const upW = 6;
-    const identW = Math.max(20, width - (idW + statusW + osW + tabsW + upW + 7));
+    const identW = Math.max(18, width - (idW + statusW + engineW + osW + tabsW + upW + 8));
 
     lines.push(
       dim(
@@ -281,6 +284,8 @@ class Tui {
           fit('#', idW) +
           ' ' +
           fit('STATUS', statusW) +
+          ' ' +
+          fit('ENGINE', engineW) +
           ' ' +
           fit('OS', osW) +
           ' ' +
@@ -299,16 +304,20 @@ class Tui {
 
     this.instances.forEach((instance, index) => {
       const fp = instance.fp;
-      const identity = instance.loginSafe
-        ? `login-safe · ${fp.locale} · ${fp.timezone.split('/').pop()} · clean profile, no spoofing`
-        : `${fp.locale} · ${fp.timezone.split('/').pop()} · ${fp.screen.width}x${fp.screen.height} · ${fp.hardwareConcurrency}c/${fp.deviceMemory}GB · ${shortGpu(fp.webglRenderer)}`;
+      const isFirefox = instance.browser === 'firefox';
+      const identity = isFirefox
+        ? `${fp.locale} · ${fp.timezone.split('/').pop()} · ${fp.mode} · ${fp.window.width}x${fp.window.height}`
+        : instance.loginSafe
+          ? `login-safe · ${fp.locale} · ${fp.timezone.split('/').pop()} · clean profile, no spoofing`
+          : `${fp.locale} · ${fp.timezone.split('/').pop()} · ${fp.screen.width}x${fp.screen.height} · ${fp.hardwareConcurrency}c/${fp.deviceMemory}GB · ${shortGpu(fp.webglRenderer)}`;
       const colorFn = STATUS_COLORS[instance.status] || ((t) => t);
       const cells = [
         fit(String(instance.id), idW),
         fit(instance.status, statusW),
+        fit(isFirefox ? 'firefox' : 'chrome', engineW),
         fit(fp.os, osW),
         fit(identity, identW),
-        fit(String(instance.pageCount), tabsW),
+        fit(isFirefox ? '—' : String(instance.pageCount), tabsW),
         fit(formatUptime(instance.uptimeMs), upW),
       ];
       const plainRow = ' ' + cells.join(' ');
@@ -324,7 +333,9 @@ class Tui {
       body.push('');
       body.push(dim('─'.repeat(width)));
       body.push(bold(` details · instance #${this.current().id}`));
-      const detail = summarize(this.current().fp, { loginSafe: this.current().loginSafe });
+      const detail = summarize(this.current().fp, {
+        loginSafe: this.current().loginSafe && this.current().browser !== 'firefox',
+      });
       for (const line of detail.split('\n')) {
         body.push(fit(line, width));
       }
@@ -340,6 +351,7 @@ class Tui {
           `${bold('l/w/m')} new linux/win/mac`,
           `${bold('c')} new + fp test`,
           `${bold('g')} login-safe`,
+          `${bold('f')} firefox`,
           `${bold('o')} open URL`,
         ].join(dim('  ·  '))
     );

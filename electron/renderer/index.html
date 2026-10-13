@@ -21,6 +21,14 @@
     <section class="launcher">
       <div class="row">
         <label class="field">
+          <span>Engine</span>
+          <select id="browser">
+            <option value="chrome">Chrome — full spoofing</option>
+            <option value="firefox">Firefox — native protection, logins work</option>
+          </select>
+        </label>
+
+        <label class="field" id="os-field">
           <span>Impersonate</span>
           <select id="os">
             <option value="linux">Linux</option>
@@ -40,6 +48,15 @@
       <button id="toggle-advanced" class="link">Advanced options</button>
 
       <div class="row advanced hidden" id="advanced">
+        <label class="field hidden" id="mode-field">
+          <span>Firefox protection</span>
+          <select id="mode">
+            <option value="balanced">Balanced — canvas randomized per profile</option>
+            <option value="strict">Strict — resistFingerprinting, letterboxing</option>
+            <option value="off">Off — clean profile only</option>
+          </select>
+        </label>
+
         <label class="field">
           <span>Timezone</span>
           <select id="tz">

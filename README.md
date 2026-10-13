@@ -1,8 +1,10 @@
 # chrome-fp
 
-Launches a real, interactive Chrome window in a throwaway profile with a **new
-fingerprint on every run**. No npm dependencies — plain Node 22 + the Chrome you
-already have installed.
+Launches a real, interactive browser window in a throwaway profile with a **new
+fingerprint on every run**. Two engines: **Chrome** (full spoofing via the
+DevTools protocol) and **Firefox** (native fingerprinting protection, no
+automation protocol — so logins keep working). No npm dependencies for the CLI
+and terminal UI — plain Node 22 plus the browser you already have.
 
 ```bash
 ./chrome-fp --app                 # desktop app: open/close instances on demand
@@ -10,6 +12,7 @@ already have installed.
 ./chrome-fp                       # fresh identity, blank tab
 ./chrome-fp https://example.com   # fresh identity, open a URL
 ./chrome-fp --check               # fresh identity, open a fingerprint test page
+./chrome-fp --firefox             # Firefox instead: no automation protocol at all
 ```
 
 Close the browser window and the profile (cookies, storage, cache, history) is
@@ -30,6 +33,8 @@ authentic (an Electron window would be trivially detectable as Electron).
 * **Advanced options**: timezone/locale (including *Match my computer*, which
   avoids the VPN flag), a seed to replay an identity, a proxy, canvas/audio
   noise, and bubblewrap isolation.
+* **Engine** dropdown: Chrome (full spoofing) or Firefox (native protection,
+  logins work); Firefox adds a protection-mode selector.
 * **Login-safe** checkbox for sites that refuse automated browsers (Google
   sign-in); it disables the spoofing options, because nothing is injected.
 * **Preview identity** shows the fingerprint that would be generated, without
@@ -38,6 +43,49 @@ authentic (an Electron window would be trivially detectable as Electron).
   **Open URL**, **Details** (full fingerprint + profile path) and **Close**.
 * Closing a Chrome window yourself removes its row; closing the control panel
   shuts every instance down and wipes all profiles.
+
+## Firefox engine
+
+```bash
+./chrome-fp --firefox https://accounts.google.com
+./chrome-fp --firefox --mode strict
+```
+
+Also key `f` in the terminal UI, or the **Engine** dropdown in the desktop app.
+
+Firefox is configured entirely through **profile preferences**, so no debugging
+port, no automation switch and no injected JavaScript are ever involved. That
+single fact fixes the hardest problem with the Chrome backend: sites that refuse
+automated browsers (Google sign-in) work normally, *and* you still get a
+different canvas fingerprint per instance — because Firefox randomizes it
+itself.
+
+| | Chrome backend | Firefox backend |
+| --- | --- | --- |
+| How it works | CDP injection before page scripts | profile prefs only |
+| Canvas / audio noise | hand-rolled, seeded per run | **native**, randomized per profile |
+| UA, language, timezone | spoofed | spoofed (prefs + `TZ`) |
+| Screen, GPU, cores, device memory | arbitrary values | Firefox's generalized values |
+| Impersonate another OS convincingly | yes | not really (Gecko gives it away) |
+| Google / bank sign-in | needs `--login-safe` (no spoofing) | **works with protection on** |
+| Automation detectable | DevTools attach is visible | nothing to detect |
+
+Protection modes (`--mode`):
+
+| Mode | What it does |
+| --- | --- |
+| `balanced` *(default)* | `privacy.fingerprintingProtection` — canvas randomized per profile, hardware values generalized, sites keep working |
+| `strict` | `privacy.resistFingerprinting` — Tor-style uniformity, screen reports the window size, letterboxing on |
+| `off` | Clean throwaway profile only, no fingerprinting protection |
+
+Measured on two fresh instances (`node test/firefox.js`): identical spoofed UA,
+languages and timezone, `navigator.webdriver` false, canvas `e0eed44b` vs
+`82a6fb9b` — different per instance, stable within each — and WebGL reporting
+Firefox's shared bucket (`NVIDIA GeForce GTX 980, or similar`) instead of your
+real GPU. `navigator.deviceMemory` does not exist in Firefox at all.
+
+Tabs opened from the app are handed to the running instance through its profile,
+so no automation channel is needed there either.
 
 ## Terminal UI
 
@@ -61,7 +109,8 @@ throwaway profile, and they all run at the same time:
 | `n` | Launch a new instance with a brand-new fingerprint |
 | `l` / `w` / `m` | New instance impersonating Linux / Windows / macOS |
 | `c` | New instance that opens a fingerprint test page |
-| `g` | New **login-safe** instance (Google sign-in works, no spoofing) |
+| `g` | New **login-safe** Chrome instance (Google sign-in works, no spoofing) |
+| `f` | New **Firefox** instance (protection on *and* logins work) |
 | `o` | Open a URL in the selected instance (new tab) |
 | `↑`/`↓` or `j`/`k`, or `1`-`9` | Select an instance |
 | `x` | Close the selected instance (profile wiped) |
@@ -106,6 +155,9 @@ checks each of those contexts. Patched functions keep native `toString()` output
 ## Options
 
 ```
+--browser <chrome|firefox>  Engine to launch                   (default: chrome)
+--firefox                   Shorthand for --browser firefox
+--mode <balanced|strict|off>  Firefox protection level       (default: balanced)
 --os <linux|windows|macos>  Platform to impersonate            (default: linux)
 --seed <string>             Reproduce a previous fingerprint
 --locale <tag>              Force locale, e.g. de-DE ("auto" = host locale)
@@ -182,6 +234,8 @@ node test/verify.js            # prints exactly what a page observes
 node test/verify.js --seed a   # same seed -> identical values
 node test/verify.js --os windows
 node test/leaks.js             # checks iframes, workers and CDP traces
+node test/firefox.js           # launches Firefox instances and reports what a page sees
+node test/firefox.js --mode strict
 ```
 
 `CHROME_FP_DEBUG=1` logs failing CDP commands, `CHROME_FP_DEBUG=2` traces every
@@ -194,7 +248,15 @@ Chrome is started with `--remote-debugging-port` or `--remote-debugging-pipe` �
 and that DevTools attachment is exactly how the fingerprint patches are
 injected. It is a browser-level signal, so no amount of JS spoofing hides it.
 
-Use login-safe mode for those sessions:
+Two ways out. The better one is the **Firefox engine**, which needs no
+automation protocol at all and therefore keeps its fingerprinting protection
+*and* signs in normally:
+
+```bash
+./chrome-fp --firefox https://accounts.google.com
+```
+
+If you want to stay on Chrome, use login-safe mode for those sessions:
 
 ```bash
 ./chrome-fp --login-safe https://accounts.google.com
@@ -230,7 +292,7 @@ right cause before changing anything:
 | `rare_device: true` | Inherent: a brand-new random fingerprint has never been seen before | Reuse `--seed <name>` for an identity you want to look "returning" |
 | `incognito`, `developer_tools` | Not triggered by this tool | — |
 | `tampering: true` | Noise or spoofing looked inconsistent | Try `--no-noise`, and prefer `--os linux` on this machine |
-| Google: "This browser or app may not be secure" | The DevTools attach needed for injection | Use `--login-safe` (see above) |
+| Google: "This browser or app may not be secure" | The DevTools attach needed for injection | Use `--firefox`, or `--login-safe` on Chrome (see above) |
 
 A fresh fingerprint on every run is the opposite of what a *returning human*
 looks like. If a site should see a consistent person, launch it with a fixed

@@ -4,13 +4,16 @@
 const path = require('path');
 const { spawn } = require('child_process');
 
-const { ChromeInstance, createFingerprint, summarize } = require('./launcher');
+const { createInstance, createIdentity, summarize } = require('./launcher');
 
 const HELP = `chrome-fp - launch a throwaway Chrome with a fresh fingerprint every run
 
 Usage: chrome-fp [options] [url]
 
 Options:
+  --browser <chrome|firefox>  Engine to launch                   (default: chrome)
+  --firefox                   Shorthand for --browser firefox
+  --mode <balanced|strict|off>  Firefox protection level       (default: balanced)
   --os <linux|windows|macos>  Platform to impersonate            (default: linux)
   --seed <string>             Reproduce a previous fingerprint
   --locale <tag>              Force locale, e.g. de-DE ("auto" = host locale)
@@ -41,6 +44,8 @@ function parseArgs(argv) {
     '--tz': 'timezone',
     '--proxy': 'proxy',
     '--profile-dir': 'profileDir',
+    '--browser': 'browser',
+    '--mode': 'mode',
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -55,6 +60,7 @@ function parseArgs(argv) {
     else if (arg === '--gui' || arg === '--tui') opts.gui = true;
     else if (arg === '--app') opts.app = true;
     else if (arg === '--login-safe' || arg === '--no-cdp') opts.loginSafe = true;
+    else if (arg === '--firefox') opts.browser = 'firefox';
     else if (arg === '--print') opts.print = true;
     else if (arg === '--json') opts.json = true;
     else if (arg === '-h' || arg === '--help') opts.help = true;
@@ -97,7 +103,12 @@ async function main() {
     return require('./tui').run(opts);
   }
 
-  const fp = createFingerprint(opts);
+  if (opts.browser && !['chrome', 'firefox'].includes(opts.browser)) {
+    console.error(`Unknown browser "${opts.browser}" (expected chrome or firefox)`);
+    process.exit(2);
+  }
+
+  const fp = createIdentity(opts);
 
   if (opts.json) {
     console.log(JSON.stringify(fp, null, 2));
@@ -108,15 +119,18 @@ async function main() {
     return;
   }
 
-  const instance = new ChromeInstance(Object.assign({}, opts, {
+  const instance = createInstance(Object.assign({}, opts, {
     fp,
+    identity: fp,
     url: opts.url || (opts.check ? 'https://abrahamjuliot.github.io/creepjs/' : 'about:blank'),
   }));
 
   console.log(
-    opts.loginSafe
-      ? '\nchrome-fp: launching Chrome in login-safe mode (clean profile, no spoofing)\n'
-      : '\nchrome-fp: launching Chrome with a fresh fingerprint\n'
+    opts.browser === 'firefox'
+      ? '\nchrome-fp: launching Firefox with a fresh profile (no automation protocol)\n'
+      : opts.loginSafe
+        ? '\nchrome-fp: launching Chrome in login-safe mode (clean profile, no spoofing)\n'
+        : '\nchrome-fp: launching Chrome with a fresh fingerprint\n'
   );
   console.log(summarize(fp, { loginSafe: opts.loginSafe }));
   console.log(

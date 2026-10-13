@@ -3,7 +3,7 @@
 const { app, BrowserWindow, ipcMain, shell, dialog, screen } = require('electron');
 const path = require('path');
 
-const { ChromeInstance, createFingerprint, summarize } = require('../src/launcher');
+const { createInstance, createIdentity, summarize } = require('../src/launcher');
 
 const instances = new Map();
 let nextId = 1;
@@ -41,9 +41,12 @@ function shortGpu(renderer) {
 
 function serialize(instance) {
   const fp = instance.fp;
+  const firefox = instance.browser === 'firefox';
   return {
     id: instance.id,
     status: instance.status,
+    browser: firefox ? 'firefox' : 'chrome',
+    mode: firefox ? fp.mode : null,
     loginSafe: instance.loginSafe,
     os: fp.os,
     pages: instance.pageCount,
@@ -52,12 +55,12 @@ function serialize(instance) {
     seed: fp.seed,
     locale: fp.locale,
     timezone: fp.timezone,
-    screen: `${fp.screen.width}x${fp.screen.height}`,
-    hardware: `${fp.hardwareConcurrency}c / ${fp.deviceMemory}GB`,
-    gpu: shortGpu(fp.webglRenderer),
-    chromeVersion: fp.chromeVersion,
+    screen: firefox ? `${fp.window.width}x${fp.window.height}` : `${fp.screen.width}x${fp.screen.height}`,
+    hardware: firefox ? `Firefox ${fp.version}` : `${fp.hardwareConcurrency}c / ${fp.deviceMemory}GB`,
+    gpu: firefox ? `${fp.mode} protection` : shortGpu(fp.webglRenderer),
+    chromeVersion: firefox ? fp.version : fp.chromeVersion,
     proxy: instance.opts.proxy || null,
-    details: summarize(fp, { loginSafe: instance.loginSafe }),
+    details: summarize(fp, { loginSafe: instance.loginSafe && !firefox }),
   };
 }
 
@@ -98,6 +101,8 @@ function createWindow() {
 
 function launchInstance(options = {}) {
   const launchOptions = Object.assign(displayBounds(), {
+    browser: options.browser === 'firefox' ? 'firefox' : 'chrome',
+    mode: options.mode || 'balanced',
     os: options.os || 'linux',
     url: options.url || 'about:blank',
     proxy: options.proxy || undefined,
@@ -109,8 +114,8 @@ function launchInstance(options = {}) {
     loginSafe: Boolean(options.loginSafe),
   });
 
-  const fp = createFingerprint(launchOptions);
-  const instance = new ChromeInstance(Object.assign({}, launchOptions, { fp }));
+  const fp = createIdentity(launchOptions);
+  const instance = createInstance(Object.assign({}, launchOptions, { fp, identity: fp }));
   instance.id = nextId++;
   instances.set(instance.id, instance);
 
@@ -179,7 +184,9 @@ ipcMain.handle('preview-fingerprint', (event, options) => {
     const merged = Object.assign(displayBounds(), options || {});
     return {
       ok: true,
-      summary: summarize(createFingerprint(merged), { loginSafe: Boolean(merged.loginSafe) }),
+      summary: summarize(createIdentity(merged), {
+        loginSafe: Boolean(merged.loginSafe) && merged.browser !== 'firefox',
+      }),
     };
   } catch (error) {
     return { ok: false, error: error.message };

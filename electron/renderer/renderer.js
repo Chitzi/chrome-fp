@@ -16,6 +16,8 @@ function formatUptime(ms) {
 
 function launchOptions() {
   return {
+    browser: el('browser').value,
+    mode: el('mode').value,
     os: el('os').value,
     url: el('url').value.trim() || 'about:blank',
     timezone: el('tz').value || undefined,
@@ -57,18 +59,25 @@ function renderInstance(instance) {
 
   const identity = document.createElement('td');
   identity.className = 'identity';
-  identity.textContent = instance.loginSafe
-    ? `login-safe · ${instance.locale} · ${instance.timezone}`
-    : `${instance.locale} · ${instance.timezone} · ${instance.screen}`;
+  identity.textContent =
+    instance.browser === 'firefox'
+      ? `firefox · ${instance.locale} · ${instance.timezone} · ${instance.screen}`
+      : instance.loginSafe
+        ? `login-safe · ${instance.locale} · ${instance.timezone}`
+        : `${instance.locale} · ${instance.timezone} · ${instance.screen}`;
   const extra = document.createElement('small');
-  extra.textContent = instance.loginSafe
-    ? `clean isolated profile, no spoofing${instance.proxy ? ` · proxy ${instance.proxy}` : ''}`
-    : `${instance.hardware} · ${instance.gpu}${instance.proxy ? ` · proxy ${instance.proxy}` : ''}`;
+  const proxySuffix = instance.proxy ? ` · proxy ${instance.proxy}` : '';
+  extra.textContent =
+    instance.browser === 'firefox'
+      ? `${instance.hardware} · ${instance.gpu} · no automation protocol${proxySuffix}`
+      : instance.loginSafe
+        ? `clean isolated profile, no spoofing${proxySuffix}`
+        : `${instance.hardware} · ${instance.gpu}${proxySuffix}`;
   identity.appendChild(extra);
   tr.appendChild(identity);
 
   const tabs = document.createElement('td');
-  tabs.textContent = String(instance.pages);
+  tabs.textContent = instance.browser === 'firefox' ? '—' : String(instance.pages);
   tr.appendChild(tabs);
 
   const uptime = document.createElement('td');
@@ -200,6 +209,20 @@ el('preview').addEventListener('click', async () => {
   out.textContent = result.ok ? result.summary : `Error: ${result.error}`;
 });
 
+// Firefox is configured entirely through profile prefs, so the Chrome-only
+// switches do not apply to it.
+function syncEngine() {
+  const firefox = el('browser').value === 'firefox';
+  el('mode-field').classList.toggle('hidden', !firefox);
+  el('os-field').classList.toggle('hidden', firefox && false);
+  for (const id of ['noise', 'loginsafe']) {
+    el(id).disabled = firefox;
+    el(id).closest('.check').classList.toggle('hidden', firefox);
+  }
+  if (firefox) el('loginsafe').checked = false;
+}
+el('browser').addEventListener('change', syncEngine);
+
 // Spoofing options are pointless in login-safe mode: nothing is injected.
 const spoofingInputs = ['os', 'noise', 'seed'];
 el('loginsafe').addEventListener('change', () => {
@@ -224,6 +247,8 @@ if (api.platform !== 'linux') {
   el('bwrap').closest('.check').title = 'bubblewrap isolation is Linux-only';
   el('bwrap').closest('.check').classList.add('hidden');
 }
+
+syncEngine();
 
 api.onState(render);
 api.getState().then(render);
