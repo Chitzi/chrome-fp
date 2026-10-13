@@ -143,9 +143,29 @@ filesystem, empty `$HOME`, private `/tmp`, own PID namespace, and
 ## Install
 
 ```bash
-npm install                                  # only needed for --app (Electron)
+npm install                                     # only needed for --app (Electron)
 ln -s "$PWD/chrome-fp" ~/.local/bin/chrome-fp   # run from anywhere
 ```
+
+## Packaged builds
+
+```bash
+npm run pack:linux   # AppImage + .deb
+npm run pack:win     # NSIS installer + portable .exe  (needs wine on Linux)
+npm run pack:all     # everything, into dist/
+```
+
+| Artifact | Platform |
+| --- | --- |
+| `chrome-fp-<version>.AppImage` | Linux, run it directly (`chmod +x`) |
+| `chrome-fp_<version>_amd64.deb` | Debian/Ubuntu/Mint, `sudo apt install ./chrome-fp_*.deb` |
+| `chrome-fp-<version>-setup-x64.exe` | Windows installer (per-user, choosable location) |
+| `chrome-fp-<version>-portable-x64.exe` | Windows, no install |
+
+The packages ship the **control panel only** — they drive the Google Chrome
+already installed on the machine (auto-detected, or set `CHROME_PATH`). The
+builds are unsigned, so Windows SmartScreen will warn on first run.
+`--bwrap` isolation is Linux-only and is hidden in the UI elsewhere.
 
 Chrome is auto-detected (`google-chrome`, `chromium`, …); override with
 `CHROME_PATH=/path/to/chrome`.

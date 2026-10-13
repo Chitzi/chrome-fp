@@ -10,7 +10,10 @@
     "start": "node src/index.js",
     "gui": "node src/index.js --gui",
     "verify": "node test/verify.js",
-    "app": "electron electron/main.js"
+    "app": "electron electron/main.js",
+    "pack:linux": "electron-builder --linux AppImage deb",
+    "pack:win": "electron-builder --win nsis portable",
+    "pack:all": "electron-builder --linux AppImage deb --win nsis portable"
   },
   "license": "MIT",
   "private": true,
@@ -18,6 +21,62 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "electron": "^44.7.0"
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
+  },
+  "author": "Chitzi",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Chitzi/chrome-fp.git"
+  },
+  "build": {
+    "appId": "com.github.chitzi.chromefp",
+    "productName": "chrome-fp",
+    "copyright": "MIT",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "package.json",
+      "!test/**",
+      "!dist/**"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network",
+      "maintainer": "Chitzi <noreply@github.com>",
+      "synopsis": "Throwaway Chrome instances with a fresh fingerprint",
+      "description": "Launches real Chrome instances in disposable profiles, each with a freshly generated, internally consistent browser fingerprint.",
+      "desktop": {
+        "entry": {
+          "Name": "chrome-fp",
+          "StartupWMClass": "chrome-fp"
+        }
+      }
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "artifactName": "${productName}-${version}-setup-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
+    }
   }
 }
