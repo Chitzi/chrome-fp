@@ -1,6 +1,6 @@
 {
   "name": "chrome-fp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Launch a throwaway Chrome instance with a fresh, internally consistent fingerprint on every run",
   "bin": {
     "chrome-fp": "./chrome-fp"
