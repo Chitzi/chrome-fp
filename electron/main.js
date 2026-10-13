@@ -10,6 +10,18 @@ let nextId = 1;
 let mainWindow = null;
 let quitting = false;
 
+function appIcon() {
+  // The window icon is what the taskbar/dock shows for a running instance.
+  const packaged = path.join(process.resourcesPath || '', 'icon.png');
+  const source = path.join(__dirname, '..', 'build', 'icons', '256x256.png');
+  for (const candidate of [packaged, source]) {
+    try {
+      if (require('fs').existsSync(candidate)) return candidate;
+    } catch (e) {}
+  }
+  return undefined;
+}
+
 function displayBounds() {
   // Keeps the spoofed screen size inside the real one on every platform.
   try {
@@ -32,6 +44,7 @@ function serialize(instance) {
   return {
     id: instance.id,
     status: instance.status,
+    loginSafe: instance.loginSafe,
     os: fp.os,
     pages: instance.pageCount,
     uptimeMs: instance.uptimeMs,
@@ -44,7 +57,7 @@ function serialize(instance) {
     gpu: shortGpu(fp.webglRenderer),
     chromeVersion: fp.chromeVersion,
     proxy: instance.opts.proxy || null,
-    details: summarize(fp),
+    details: summarize(fp, { loginSafe: instance.loginSafe }),
   };
 }
 
@@ -63,6 +76,7 @@ function createWindow() {
     minWidth: 760,
     minHeight: 480,
     title: 'chrome-fp',
+    icon: appIcon(),
     backgroundColor: '#14161a',
     autoHideMenuBar: true,
     webPreferences: {
@@ -92,6 +106,7 @@ function launchInstance(options = {}) {
     locale: options.locale || undefined,
     noise: options.noise !== false,
     bwrap: Boolean(options.bwrap),
+    loginSafe: Boolean(options.loginSafe),
   });
 
   const fp = createFingerprint(launchOptions);
@@ -100,7 +115,13 @@ function launchInstance(options = {}) {
   instances.set(instance.id, instance);
 
   instance.on('pages', () => broadcast());
-  instance.on('ready', () => broadcast(`#${instance.id} ready · ${fp.locale} · ${fp.timezone}`));
+  instance.on('ready', () =>
+    broadcast(
+      `#${instance.id} ready · ${fp.locale} · ${fp.timezone}${
+        launchOptions.loginSafe ? ' · login-safe' : ''
+      }`
+    )
+  );
   instance.on('exit', () => {
     instances.delete(instance.id);
     broadcast(quitting ? null : `#${instance.id} closed, profile wiped.`);
@@ -156,7 +177,10 @@ ipcMain.handle('open-url', async (event, { id, url }) => {
 ipcMain.handle('preview-fingerprint', (event, options) => {
   try {
     const merged = Object.assign(displayBounds(), options || {});
-    return { ok: true, summary: summarize(createFingerprint(merged)) };
+    return {
+      ok: true,
+      summary: summarize(createFingerprint(merged), { loginSafe: Boolean(merged.loginSafe) }),
+    };
   } catch (error) {
     return { ok: false, error: error.message };
   }

@@ -69,18 +69,33 @@ function realDisplayGeometry() {
 
 function createFingerprint(opts = {}) {
   const display = realDisplayGeometry();
+  // Login-safe instances are meant to look like your normal browser, so the
+  // host timezone/locale are the sane default there.
+  const fallback = opts.loginSafe ? 'auto' : undefined;
   return generate({
     seed: opts.seed,
     os: opts.os || 'linux',
-    locale: opts.locale,
-    timezone: opts.timezone,
+    locale: opts.locale || fallback,
+    timezone: opts.timezone || fallback,
     noise: opts.noise,
     maxScreenWidth: display.width,
     maxScreenHeight: display.height,
   });
 }
 
-function summarize(fp) {
+function summarize(fp, options = {}) {
+  if (options.loginSafe) {
+    const rows = [
+      ['mode', 'login-safe — no DevTools attach, no JS patching'],
+      ['applied', `locale ${fp.locale} · timezone ${fp.timezone}`],
+      ['window', `${fp.window.width}x${fp.window.height} @ ${fp.window.left},${fp.window.top}`],
+      ['isolation', 'fresh throwaway profile (cookies, storage, history)'],
+      ['not spoofed', 'user agent, screen, GPU, canvas/audio — your real values'],
+    ];
+    const width = Math.max(...rows.map((r) => r[0].length));
+    return rows.map(([k, v]) => `  ${k.padEnd(width)}  ${v}`).join('\n');
+  }
+
   const rows = [
     ['seed', fp.seed],
     ['user agent', fp.userAgent],
@@ -102,6 +117,24 @@ function summarize(fp) {
 }
 
 function chromeArgs(fp, profileDir, opts) {
+  if (opts.loginSafe) {
+    // Google (and some banks) refuse to sign in when Chrome exposes the DevTools
+    // protocol, so this mode passes no debugging or automation switches at all.
+    // Only what the command line can do: fresh profile, language, window, proxy.
+    const plain = [
+      `--user-data-dir=${profileDir}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--password-store=basic',
+      `--lang=${fp.locale}`,
+      `--accept-lang=${fp.acceptLanguage}`,
+      `--window-size=${fp.window.width},${fp.window.height}`,
+      `--window-position=${fp.window.left},${fp.window.top}`,
+    ];
+    if (opts.proxy) plain.push(`--proxy-server=${opts.proxy}`);
+    return plain;
+  }
+
   const args = [
     `--user-data-dir=${profileDir}`,
     '--no-first-run',
@@ -179,6 +212,7 @@ class ChromeInstance extends EventEmitter {
   constructor(opts = {}) {
     super();
     this.opts = opts;
+    this.loginSafe = Boolean(opts.loginSafe);
     this.fp = opts.fp || createFingerprint(opts);
     this.status = 'idle';
     this.pageCount = 0;
@@ -227,6 +261,7 @@ class ChromeInstance extends EventEmitter {
 
     this.status = 'starting';
     this.startedAt = Date.now();
+    if (this.loginSafe) args.push(this.startUrl);
     this.child = spawn(command, args, { env, stdio: ['ignore', 'ignore', 'pipe'] });
     this.child.stderr.on('data', (chunk) => {
       this.stderrTail = (this.stderrTail + chunk.toString()).slice(-4000);
@@ -237,6 +272,15 @@ class ChromeInstance extends EventEmitter {
       this._cleanup();
       this.emit('exit', code);
     });
+
+    if (this.loginSafe) {
+      // Chrome owns its own lifecycle here: closing the last window exits the
+      // process, which triggers cleanup below.
+      this.status = 'running';
+      this.pageCount = 1;
+      this.emit('ready');
+      return this;
+    }
 
     let endpoint;
     try {
@@ -296,6 +340,17 @@ class ChromeInstance extends EventEmitter {
   }
 
   async openUrl(url, newWindow = false) {
+    if (this.loginSafe) {
+      // A second Chrome process with the same profile hands the URL to the
+      // already running instance and exits.
+      const opener = spawn(findChrome(), [`--user-data-dir=${this.profileDir}`, url], {
+        env: Object.assign({}, process.env, { TZ: this.fp.timezone }),
+        stdio: 'ignore',
+        detached: true,
+      });
+      opener.unref();
+      return { loginSafe: true };
+    }
     if (!this.client) throw new Error('instance not started');
     const params = { url };
     if (newWindow) {

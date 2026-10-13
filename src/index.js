@@ -22,6 +22,8 @@ Options:
   --keep-profile              Keep the temp profile after exit
   --profile-dir <path>        Use a specific profile dir (implies --keep-profile)
   --bwrap                     Extra OS-level isolation via bubblewrap
+  --login-safe                No DevTools attach: works with Google sign-in,
+                              but only isolates the profile (no spoofing)
   --app                       Desktop app (Electron) to open/close instances
   --gui                       Terminal UI to open/close several instances
   --check                     Open a fingerprint test page
@@ -52,6 +54,7 @@ function parseArgs(argv) {
     else if (arg === '--check') opts.check = true;
     else if (arg === '--gui' || arg === '--tui') opts.gui = true;
     else if (arg === '--app') opts.app = true;
+    else if (arg === '--login-safe' || arg === '--no-cdp') opts.loginSafe = true;
     else if (arg === '--print') opts.print = true;
     else if (arg === '--json') opts.json = true;
     else if (arg === '-h' || arg === '--help') opts.help = true;
@@ -101,7 +104,7 @@ async function main() {
     if (opts.print) return;
   }
   if (opts.print) {
-    console.log(summarize(fp));
+    console.log(summarize(fp, { loginSafe: opts.loginSafe }));
     return;
   }
 
@@ -110,8 +113,12 @@ async function main() {
     url: opts.url || (opts.check ? 'https://abrahamjuliot.github.io/creepjs/' : 'about:blank'),
   }));
 
-  console.log('\nchrome-fp: launching Chrome with a fresh fingerprint\n');
-  console.log(summarize(fp));
+  console.log(
+    opts.loginSafe
+      ? '\nchrome-fp: launching Chrome in login-safe mode (clean profile, no spoofing)\n'
+      : '\nchrome-fp: launching Chrome with a fresh fingerprint\n'
+  );
+  console.log(summarize(fp, { loginSafe: opts.loginSafe }));
   console.log(
     `\n  profile    ${instance.profileDir}${instance.keepProfile ? '' : ' (deleted on exit)'}\n`
   );

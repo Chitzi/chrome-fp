@@ -30,6 +30,8 @@ authentic (an Electron window would be trivially detectable as Electron).
 * **Advanced options**: timezone/locale (including *Match my computer*, which
   avoids the VPN flag), a seed to replay an identity, a proxy, canvas/audio
   noise, and bubblewrap isolation.
+* **Login-safe** checkbox for sites that refuse automated browsers (Google
+  sign-in); it disables the spoofing options, because nothing is injected.
 * **Preview identity** shows the fingerprint that would be generated, without
   launching anything.
 * Each row shows live status, the identity, open tab count and uptime, with
@@ -59,6 +61,7 @@ throwaway profile, and they all run at the same time:
 | `n` | Launch a new instance with a brand-new fingerprint |
 | `l` / `w` / `m` | New instance impersonating Linux / Windows / macOS |
 | `c` | New instance that opens a fingerprint test page |
+| `g` | New **login-safe** instance (Google sign-in works, no spoofing) |
 | `o` | Open a URL in the selected instance (new tab) |
 | `↑`/`↓` or `j`/`k`, or `1`-`9` | Select an instance |
 | `x` | Close the selected instance (profile wiped) |
@@ -109,6 +112,8 @@ checks each of those contexts. Patched functions keep native `toString()` output
 --tz <zone>                 Force timezone, e.g. Europe/Berlin
                             ("auto" = host timezone, matches your real IP)
 --proxy <server>            e.g. socks5://127.0.0.1:9050
+--login-safe                No DevTools attach: works with Google sign-in,
+                            but only isolates the profile (no spoofing)
 --no-noise                  Disable canvas/WebGL/audio/text noise
 --keep-profile              Keep the temp profile after exit
 --profile-dir <path>        Use a specific profile dir (implies --keep-profile)
@@ -182,6 +187,36 @@ node test/leaks.js             # checks iframes, workers and CDP traces
 `CHROME_FP_DEBUG=1` logs failing CDP commands, `CHROME_FP_DEBUG=2` traces every
 CDP command per target.
 
+## Signing in to Google (and other sites that block automation)
+
+Google refuses sign-in with **"This browser or app may not be secure"** whenever
+Chrome is started with `--remote-debugging-port` or `--remote-debugging-pipe` —
+and that DevTools attachment is exactly how the fingerprint patches are
+injected. It is a browser-level signal, so no amount of JS spoofing hides it.
+
+Use login-safe mode for those sessions:
+
+```bash
+./chrome-fp --login-safe https://accounts.google.com
+```
+
+in the terminal UI press `g`, or tick **Login-safe** in the desktop app.
+
+What you get and what you give up:
+
+| | Normal mode | Login-safe mode |
+| --- | --- | --- |
+| DevTools attached | yes | **no** |
+| Fingerprint spoofing (screen, GPU, canvas, UA…) | yes | no — your real values |
+| Fresh isolated profile (cookies, storage, history) | yes | yes |
+| Language / timezone / window size | randomized | taken from your machine by default |
+| Proxy, bubblewrap | yes | yes |
+| Google / bank sign-in | usually blocked | works |
+
+So login-safe gives you **identity separation** (a clean container per account)
+rather than a new fingerprint. That is normally what you want for logging in:
+a brand-new fingerprint on an account you have used before is itself suspicious.
+
 ## Still flagged by a bot check?
 
 Anti-fraud services report several independent signals. Map the verdict to the
@@ -195,6 +230,7 @@ right cause before changing anything:
 | `rare_device: true` | Inherent: a brand-new random fingerprint has never been seen before | Reuse `--seed <name>` for an identity you want to look "returning" |
 | `incognito`, `developer_tools` | Not triggered by this tool | — |
 | `tampering: true` | Noise or spoofing looked inconsistent | Try `--no-noise`, and prefer `--os linux` on this machine |
+| Google: "This browser or app may not be secure" | The DevTools attach needed for injection | Use `--login-safe` (see above) |
 
 A fresh fingerprint on every run is the opposite of what a *returning human*
 looks like. If a site should see a consistent person, launch it with a fixed

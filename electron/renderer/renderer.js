@@ -24,6 +24,7 @@ function launchOptions() {
     proxy: el('proxy').value.trim() || undefined,
     noise: el('noise').checked,
     bwrap: el('bwrap').checked,
+    loginSafe: el('loginsafe').checked,
   };
 }
 
@@ -56,11 +57,13 @@ function renderInstance(instance) {
 
   const identity = document.createElement('td');
   identity.className = 'identity';
-  identity.textContent = `${instance.locale} · ${instance.timezone} · ${instance.screen}`;
+  identity.textContent = instance.loginSafe
+    ? `login-safe · ${instance.locale} · ${instance.timezone}`
+    : `${instance.locale} · ${instance.timezone} · ${instance.screen}`;
   const extra = document.createElement('small');
-  extra.textContent = `${instance.hardware} · ${instance.gpu}${
-    instance.proxy ? ` · proxy ${instance.proxy}` : ''
-  }`;
+  extra.textContent = instance.loginSafe
+    ? `clean isolated profile, no spoofing${instance.proxy ? ` · proxy ${instance.proxy}` : ''}`
+    : `${instance.hardware} · ${instance.gpu}${instance.proxy ? ` · proxy ${instance.proxy}` : ''}`;
   identity.appendChild(extra);
   tr.appendChild(identity);
 
@@ -195,6 +198,15 @@ el('preview').addEventListener('click', async () => {
   const out = el('preview-out');
   out.classList.remove('hidden');
   out.textContent = result.ok ? result.summary : `Error: ${result.error}`;
+});
+
+// Spoofing options are pointless in login-safe mode: nothing is injected.
+const spoofingInputs = ['os', 'noise', 'seed'];
+el('loginsafe').addEventListener('change', () => {
+  const off = el('loginsafe').checked;
+  spoofingInputs.forEach((id) => {
+    el(id).disabled = off;
+  });
 });
 
 // Impersonating the host OS is the most coherent default (fonts are real), and

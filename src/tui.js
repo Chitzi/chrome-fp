@@ -181,6 +181,8 @@ class Tui {
         return this.launch({ os: 'macos' });
       case 'c':
         return this.launch({ url: 'https://abrahamjuliot.github.io/creepjs/' });
+      case 'g':
+        return this.launch({ loginSafe: true });
       case 'x':
       case '\x7f':
         return this.closeSelected();
@@ -297,7 +299,9 @@ class Tui {
 
     this.instances.forEach((instance, index) => {
       const fp = instance.fp;
-      const identity = `${fp.locale} · ${fp.timezone.split('/').pop()} · ${fp.screen.width}x${fp.screen.height} · ${fp.hardwareConcurrency}c/${fp.deviceMemory}GB · ${shortGpu(fp.webglRenderer)}`;
+      const identity = instance.loginSafe
+        ? `login-safe · ${fp.locale} · ${fp.timezone.split('/').pop()} · clean profile, no spoofing`
+        : `${fp.locale} · ${fp.timezone.split('/').pop()} · ${fp.screen.width}x${fp.screen.height} · ${fp.hardwareConcurrency}c/${fp.deviceMemory}GB · ${shortGpu(fp.webglRenderer)}`;
       const colorFn = STATUS_COLORS[instance.status] || ((t) => t);
       const cells = [
         fit(String(instance.id), idW),
@@ -320,7 +324,8 @@ class Tui {
       body.push('');
       body.push(dim('─'.repeat(width)));
       body.push(bold(` details · instance #${this.current().id}`));
-      for (const line of summarize(this.current().fp).split('\n')) {
+      const detail = summarize(this.current().fp, { loginSafe: this.current().loginSafe });
+      for (const line of detail.split('\n')) {
         body.push(fit(line, width));
       }
       body.push(fit(`  profile       ${this.current().profileDir}`, width));
@@ -334,6 +339,7 @@ class Tui {
           `${bold('n')} new`,
           `${bold('l/w/m')} new linux/win/mac`,
           `${bold('c')} new + fp test`,
+          `${bold('g')} login-safe`,
           `${bold('o')} open URL`,
         ].join(dim('  ·  '))
     );
