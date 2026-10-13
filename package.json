@@ -1,0 +1,23 @@
+{
+  "name": "chrome-fp",
+  "version": "1.0.0",
+  "description": "Launch a throwaway Chrome instance with a fresh, internally consistent fingerprint on every run",
+  "bin": {
+    "chrome-fp": "./chrome-fp"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "gui": "node src/index.js --gui",
+    "verify": "node test/verify.js",
+    "app": "electron electron/main.js"
+  },
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0"
+  }
+}

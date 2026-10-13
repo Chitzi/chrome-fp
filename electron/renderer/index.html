@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;"
+    />
+    <title>chrome-fp</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>chrome-fp</h1>
+        <p class="sub">Throwaway Chrome instances with a fresh fingerprint on every launch</p>
+      </div>
+      <button id="close-all" class="ghost danger" disabled>Close all</button>
+    </header>
+
+    <section class="launcher">
+      <div class="row">
+        <label class="field">
+          <span>Impersonate</span>
+          <select id="os">
+            <option value="linux">Linux</option>
+            <option value="windows">Windows</option>
+            <option value="macos">macOS</option>
+          </select>
+        </label>
+
+        <label class="field grow">
+          <span>Start URL</span>
+          <input id="url" type="text" placeholder="about:blank" spellcheck="false" />
+        </label>
+
+        <button id="launch" class="primary">Launch instance</button>
+      </div>
+
+      <button id="toggle-advanced" class="link">Advanced options</button>
+
+      <div class="row advanced hidden" id="advanced">
+        <label class="field">
+          <span>Timezone</span>
+          <select id="tz">
+            <option value="">Random</option>
+            <option value="auto">Match my computer (avoids VPN flag)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Locale</span>
+          <select id="locale">
+            <option value="">Random</option>
+            <option value="auto">Match my computer</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Seed (repeat an identity)</span>
+          <input id="seed" type="text" placeholder="random" spellcheck="false" />
+        </label>
+        <label class="field grow">
+          <span>Proxy</span>
+          <input id="proxy" type="text" placeholder="socks5://127.0.0.1:9050" spellcheck="false" />
+        </label>
+        <label class="check"><input id="noise" type="checkbox" checked /> <span>Canvas/audio noise</span></label>
+        <label class="check"><input id="bwrap" type="checkbox" /> <span>bubblewrap isolation</span></label>
+        <button id="preview" class="ghost">Preview identity</button>
+      </div>
+      <pre id="preview-out" class="preview hidden"></pre>
+    </section>
+
+    <main>
+      <table id="table">
+        <thead>
+          <tr>
+            <th class="col-id">#</th>
+            <th class="col-status">Status</th>
+            <th class="col-os">OS</th>
+            <th>Identity</th>
+            <th class="col-tabs">Tabs</th>
+            <th class="col-up">Uptime</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p id="empty" class="empty">No instances running — launch one above.</p>
+    </main>
+
+    <footer>
+      <span id="message">Ready.</span>
+      <span id="count"></span>
+    </footer>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
